@@ -52,3 +52,23 @@ resource "aws_s3_bucket" "prd-log-bucket" {
   bucket = "log.${var.prd_domain}"
   acl    = "log-delivery-write"
 }
+
+########## CERTIFICATE ##########
+
+resource "aws_acm_certificate" "prd-cert" {
+  domain_name       = var.prd_domain
+  validation_method = "DNS"
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
+resource "aws_acm_certificate" "stg-cert" {
+  domain_name       = var.stg_domain
+  validation_method = "DNS"
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
