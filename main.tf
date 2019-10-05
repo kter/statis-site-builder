@@ -5,8 +5,15 @@ variable "stg_route53_zone_id" {}
 
 provider "aws" {
   profile = "private"
+  region = "ap-northeast-1"
+}
+
+provider "aws" {
+  alias = "acm-region"
+  profile = "private"
   region = "us-east-1"
 }
+
 
 ########## ASSET S3 BUCKET ##########
 resource "aws_s3_bucket" "stg-asset" {
@@ -92,6 +99,7 @@ resource "aws_s3_bucket" "prd-log-bucket" {
 ########## CERTIFICATE ##########
 
 resource "aws_acm_certificate" "stg-cert" {
+  provider          = "aws.acm-region"
   domain_name       = var.stg_domain
   validation_method = "DNS"
 
@@ -101,12 +109,43 @@ resource "aws_acm_certificate" "stg-cert" {
 }
 
 resource "aws_acm_certificate" "prd-cert" {
+  provider          = "aws.acm-region"
   domain_name       = var.prd_domain
   validation_method = "DNS"
 
   lifecycle {
     create_before_destroy = true
   }
+}
+
+########## CERTIFICATE VALIDATION ##########
+
+resource "aws_route53_record" "stg-cert-validation-record" {
+  name    = "${aws_acm_certificate.stg-cert.domain_validation_options.0.resource_record_name}"
+  type    = "${aws_acm_certificate.stg-cert.domain_validation_options.0.resource_record_type}"
+  zone_id = var.stg_route53_zone_id
+  records = ["${aws_acm_certificate.stg-cert.domain_validation_options.0.resource_record_value}"]
+  ttl     = 60
+}
+
+resource "aws_acm_certificate_validation" "stg-cert-validation" {
+  provider          = "aws.acm-region"
+  certificate_arn         = "${aws_acm_certificate.stg-cert.arn}"
+  validation_record_fqdns = ["${aws_route53_record.stg-cert-validation-record.fqdn}"]
+}
+
+resource "aws_route53_record" "prd-cert-validation-record" {
+  name    = "${aws_acm_certificate.prd-cert.domain_validation_options.0.resource_record_name}"
+  type    = "${aws_acm_certificate.prd-cert.domain_validation_options.0.resource_record_type}"
+  zone_id = var.prd_route53_zone_id
+  records = ["${aws_acm_certificate.prd-cert.domain_validation_options.0.resource_record_value}"]
+  ttl     = 60
+}
+
+resource "aws_acm_certificate_validation" "prd-cert-validation" {
+  provider          = "aws.acm-region"
+  certificate_arn         = "${aws_acm_certificate.prd-cert.arn}"
+  validation_record_fqdns = ["${aws_route53_record.prd-cert-validation-record.fqdn}"]
 }
 
 ########## DNS RECORD ##########
